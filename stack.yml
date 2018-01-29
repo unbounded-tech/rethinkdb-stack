@@ -1,0 +1,95 @@
+version: '3.3'
+
+networks:
+
+  proxy:
+    external: true
+
+  rethink:
+    external: true
+
+services:
+
+  primary:
+    image: rethinkdb:2
+    networks:
+      - rethink
+    volumes:
+      - primary-data:/data
+    command: ["rethinkdb", "--bind", "all", "--no-http-admin", "--join", "primary"]
+    deploy:
+      resources:
+        reservations:
+          memory: 4G
+        limits:
+          memory: 4G
+      placement:
+        constraints: 
+          - node.role == worker
+      labels:
+        - com.df.alertName=memlimit
+        - com.df.alertIf=@service_mem_limit:0.8
+        - com.df.alertFor=30s
+
+  ui:
+    image: rethinkdb:2
+    networks:
+      - rethink
+      - proxy
+    volumes:
+      - ui-data:/data
+    command: ["rethinkdb", "--bind", "all", "--join", "primary"]
+    deploy:
+      resources:
+        reservations:
+          memory: 4G
+        limits:
+          memory: 4G
+      placement:
+        constraints: 
+          - node.role == worker
+      labels:
+        - com.df.notify=true
+        - com.df.distribute=true
+        - com.df.port=8080
+        - com.df.serviceDomain=${RETHINK_DOMAIN:-localhost}
+        - com.df.usersPassEncrypted=true
+        - com.df.usersSecret=admin
+        - com.df.alertName=memlimit
+        - com.df.alertIf=@service_mem_limit:0.8
+        - com.df.alertFor=30s
+
+  write:
+    image: rethinkdb:2
+    networks:
+      - rethink
+    volumes:
+      - write-data:/data
+    command: ["rethinkdb", "--bind", "all", "--no-http-admin", "--join", "primary"]
+    deploy:
+      resources:
+        reservations:
+          memory: 4G
+        limits:
+          memory: 4G
+      placement:
+        constraints: 
+          - node.role == worker
+      labels:
+        - com.df.alertName=memlimit
+        - com.df.alertIf=@service_mem_limit:0.8
+        - com.df.alertFor=30s
+
+volumes:
+
+  primary-data:
+    driver: cloudstor:aws
+    external: false
+
+  ui-data:
+    driver: cloudstor:aws
+    external: false
+  
+  write-data:
+    driver: cloudstor:aws
+    external: false
